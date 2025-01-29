@@ -4,6 +4,7 @@
     "": {
       "name": "claim-initiative-rewards",
       "dependencies": {
+        "dnum": "^2.14.0",
         "viem": "^2.21.50",
       },
       "devDependencies": {
@@ -37,7 +38,11 @@
 
     "bun-types": ["bun-types@1.2.1", "", { "dependencies": { "@types/node": "*", "@types/ws": "~8.5.10" } }, "sha512-p7bmXUWmrPWxhcbFVk7oUXM5jAGt94URaoa3qf4mz43MEhNAo/ot1urzBqctgvuq7y9YxkuN51u+/qm4BiIsHw=="],
 
+    "dnum": ["dnum@2.14.0", "", { "dependencies": { "from-exponential": "^1.1.1" } }, "sha512-xyP+csC3QlQY0YCCcpJ6VApTJ35Gh+QN9L7gRstqaZc2VCtd1W1844AuYTy3FlZtWePJ/2hXYY250I0dd3qH6Q=="],
+
     "eventemitter3": ["eventemitter3@5.0.1", "", {}, "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA=="],
+
+    "from-exponential": ["from-exponential@1.1.1", "", {}, "sha512-VBE7f5OVnYwdgB3LHa+Qo29h8qVpxhVO9Trlc+AWm+/XNAgks1tAwMFHb33mjeiof77GglsJzeYF7OqXrROP/A=="],
 
     "isows": ["isows@1.0.6", "", { "peerDependencies": { "ws": "*" } }, "sha512-lPHCayd40oW98/I0uvgaHKWCSvkzY27LjWLbtzOm64yQ+G3Q5npjjbdppU65iZXkK1Zt+kH9pfegli0AYfwYYw=="],
 

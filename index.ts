@@ -1,3 +1,4 @@
+import { subtract, greaterThanOrEqual } from "dnum";
 import { createPublicClient, createWalletClient, getContract, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
@@ -10,6 +11,7 @@ const INITIATIVES = [
   "0xa76434d58ccc9b8277180a691148a598fd073035", // CURVE_BOLD_USDC
   "0xdc6f869d2d34e4aee3e89a51f2af6d54f0f7f690", // DEFI_COLLECTIVE
 ];
+const CLAIMABLE = 3; // Initiative status
 
 const isValidPk = (k: string): k is `0x${string}` => k.startsWith("0x");
 if (!process.env.PRIVATE_KEY || !isValidPk(process.env.PRIVATE_KEY)) {
@@ -50,7 +52,7 @@ async function claimForInitiative(initiative: Address) {
   console.log(`Initiative status: ${status}`);
   console.log(`Claimable amount:  ${claimableAmount}`);
 
-  if (lastEpochClaim >= currentEpoch) {
+  if (greaterThanOrEqual(lastEpochClaim, subtract(currentEpoch, 1))) {
     console.log(`Already claimed (${initiative})`);
     return;
   }
@@ -58,7 +60,7 @@ async function claimForInitiative(initiative: Address) {
     console.log(`Nothing to claim (${initiative})`);
     return;
   }
-  if (status != 3) {
+  if (status != CLAIMABLE) {
     console.log(`Not claimable status (${initiative})`);
     return;
   }
