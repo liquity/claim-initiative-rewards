@@ -66,10 +66,24 @@ async function claimForInitiative(initiative: Address) {
   }
 
   // Claim
-  await contract.write.claimForInitiative([initiative]);
+  console.log()
+  console.log(`Claiming for Initiative at ${initiative}`);
+  const txHash = await contract.write.claimForInitiative([initiative]);
+  console.log('tx hash: ', txHash);
+
+  // Wait for tx to be mined
+  // TODO: get current nonce and increment for every tx/initiative
+  //await new Promise(f => setTimeout(f, 60000));
+  await client.public.waitForTransactionReceipt({ hash: txHash })
 
   return;
 }
 
+async function main() {
+  for (const initiative of INITIATIVES) {
+    await claimForInitiative(getAddress(initiative));
+  }
+}
+
 // init
-INITIATIVES.forEach((initiative, _) => claimForInitiative(getAddress(initiative)));
+main()
