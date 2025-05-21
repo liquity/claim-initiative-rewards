@@ -5,10 +5,10 @@ import { mainnet } from "viem/chains";
 import { Address, getAddress } from "viem";
 import governanceAbi from "./governance.abi";
 
-const GOVERNANCE = "0x636deb767cd7d0f15ca4ab8ea9a9b26e98b426ac";
+const GOVERNANCE = "0x807def5e7d057df05c796f4bc75c3fe82bd6eee1";
 const INITIATIVES = [
-  "0x4347d2d28a3428ddf1b7cfc7f097b2128a1a0059", // CURVE_BOLD_LUSD
-  "0xa76434d58ccc9b8277180a691148a598fd073035", // CURVE_BOLD_USDC
+  "0xba415afa8fcd65196764b5e08cb4dbf90bee33b4", // CURVE_BOLD_USDC
+  "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e", // CURVE_BOLD_LUSD
   "0xdc6f869d2d34e4aee3e89a51f2af6d54f0f7f690", // DEFI_COLLECTIVE
 ];
 const CLAIMABLE = 3; // Initiative status
