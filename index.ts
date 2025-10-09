@@ -4,13 +4,11 @@ import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 import { Address, getAddress } from "viem";
 import governanceAbi from "./governance.abi";
+import merklInitiativeAbi from "./merklInitiative.abi";
 
 const GOVERNANCE = "0x807def5e7d057df05c796f4bc75c3fe82bd6eee1";
-const INITIATIVES = [
-  "0xba415afa8fcd65196764b5e08cb4dbf90bee33b4", // CURVE_BOLD_USDC
-  "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e", // CURVE_BOLD_LUSD
-  "0xdc6f869d2d34e4aee3e89a51f2af6d54f0f7f690", // DEFI_COLLECTIVE
-];
+const INITIATIVES = [];
+const UNIV4_BOLD_USDC_MERKL_INITIATIVE = "0xB42448852A1BFc99d66ed53C65e2B49cF954f615";
 const CLAIMABLE = 3; // Initiative status
 
 const isValidPk = (k: string): k is `0x${string}` => k.startsWith("0x");
@@ -33,7 +31,7 @@ const client = {
   }),
 };
 
-async function claimForInitiative(initiative: Address) {
+async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
   const contract = getContract({
     address: GOVERNANCE,
     abi: governanceAbi,
@@ -68,7 +66,17 @@ async function claimForInitiative(initiative: Address) {
   // Claim
   console.log()
   console.log(`Claiming for Initiative at ${initiative}`);
-  const txHash = await contract.write.claimForInitiative([initiative]);
+  let txHash;
+  if (!isMerkl) {
+    txHash = await contract.write.claimForInitiative([initiative]);
+  } else {
+    const merklInitiativeContract = getContract({
+      address: initiative,
+      abi: merklInitiativeAbi,
+      client,
+    });
+    txHash = await merklInitiativeContract.write.claimForInitiative();
+  }
   console.log('tx hash: ', txHash);
 
   // Wait for tx to be mined
@@ -83,6 +91,8 @@ async function main() {
   for (const initiative of INITIATIVES) {
     await claimForInitiative(getAddress(initiative));
   }
+  // Merkl needs a wrapper, not claimed directly on Governance
+  await claimForInitiative(getAddress(UNIV4_BOLD_USDC_MERKL_INITIATIVE), true);
 }
 
 // init
