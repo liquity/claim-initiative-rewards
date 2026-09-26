@@ -32,14 +32,14 @@ const client = {
   wallet: createWalletClient({
     account: privateKeyToAccount(process.env.PRIVATE_KEY),
     chain: mainnet,
-    transport: http(),
+    transport: http(process.env.RPC_URL),
   }),
   public: createPublicClient({
     batch: {
       multicall: true,
     },
     chain: mainnet,
-    transport: http(),
+    transport: http(process.env.RPC_URL),
   }),
 };
 
