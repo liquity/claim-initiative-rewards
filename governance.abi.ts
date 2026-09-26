@@ -57,7 +57,7 @@ export default [
         type: "uint256",
       },
     ],
-    stateMutability: "nonpayable",
+    stateMutability: "view", // it's actually nonpayable, but viem doesn't allow reads on mutating functions
     type: "function",
   },
 ] as const;

@@ -2,7 +2,7 @@ import { subtract, greaterThanOrEqual } from "dnum";
 import { createPublicClient, createWalletClient, getContract, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
-import { Address, getAddress } from "viem";
+import { type Address, getAddress } from "viem";
 import governanceAbi from "./governance.abi";
 import merklInitiativeAbi from "./merklInitiative.abi";
 
@@ -68,7 +68,7 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
     console.log(`Already claimed (${initiative})`);
     return;
   }
-  if (claimableAmount == 0) {
+  if (claimableAmount === 0n) {
     console.log(`Nothing to claim (${initiative})`);
     return;
   }
