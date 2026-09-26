@@ -57,12 +57,18 @@ const lastClaimedEpoch = new Map<Address, bigint>(); // in-memory cache, reset o
 const shortAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 const initiativeLink = (address: Address) => `<https://etherscan.io/address/${address}|\`${shortAddress(address)}\`>`;
 const fmtAmount = (amount: bigint) => formatDnum([amount, 18], { digits: 4, trailingZeros: false });
+const walletLink = `<https://etherscan.io/address/${client.wallet.account.address}|\`${shortAddress(client.wallet.account.address)}\`>`;
 
 function fmtDuration(ms: number): string {
   const minutes = Math.floor(ms / 60_000) % 60;
   const hours = Math.floor(ms / 3_600_000) % 24;
   const days = Math.floor(ms / 86_400_000);
   return (days > 0 ? `${days}d ` : "") + (hours > 0 || days > 0 ? `${hours}h ` : "") + `${minutes}m`;
+}
+
+async function getEthBalance(): Promise<string> {
+  const balance = await client.public.getBalance({ address: client.wallet.account.address });
+  return `${fmtAmount(balance)} ETH`;
 }
 
 async function claimForInitiative(initiative: Address, kind: InitiativeKind = "generic") {
@@ -209,15 +215,19 @@ async function main() {
     `:rocket: Claim bot started — watching ${INITIATIVES.length} initiatives`,
     slack.section(`:rocket: *Claim bot started* — watching *${INITIATIVES.length}* initiatives on Ethereum mainnet`),
     slack.fields(
-      `*Wallet*: <https://etherscan.io/address/${client.wallet.account.address}|\`${shortAddress(client.wallet.account.address)}\`>`,
+      `*Wallet*: ${walletLink}`,
+      `*Balance*: ${await getEthBalance()}`,
       `*Poll interval*: ${POLL_INTERVAL_MS / 1000}s`,
       `*Heartbeat*: every ${HEARTBEAT_INTERVAL_MS / 3_600_000}h`,
     ),
     slack.section(
-      INITIATIVES.map(
-        ({ address, kind }) =>
-          `• ${initiativeLink(address)} ${kind === "generic" ? "_(Generic)_" : kind === "merkl" ? "_(Merkl)_" : ""}`,
-      ).join("\n"),
+      [
+        "*Initiatives*:",
+        ...INITIATIVES.map(
+          ({ address, kind }) =>
+            `• ${initiativeLink(address)} ${kind === "generic" ? "_(Generic)_" : kind === "merkl" ? "_(Merkl)_" : ""}`,
+        ),
+      ].join("\n"),
     ),
   );
 
@@ -261,7 +271,8 @@ async function main() {
           `*Uptime*: ${uptime}`,
           `*Polls*: ${pollCount}`,
           `*Claims*: ${claimCount}`,
-          `*Wallet*: \`${shortAddress(client.wallet.account.address)}\``,
+          `*Wallet*: ${walletLink}`,
+          `*Balance*: ${await getEthBalance()}`,
         ),
       );
     }
