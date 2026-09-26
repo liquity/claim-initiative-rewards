@@ -48,7 +48,7 @@ async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
   // get last claim epoch
   const [status, lastEpochClaim, claimableAmount] = await contract.read.getInitiativeState([initiative]);
 
-  console.log()
+  console.log();
   console.log(`Current epoch:     ${currentEpoch}`);
   console.log(`Last claim epoch:  ${lastEpochClaim}`);
   console.log(`Initiative status: ${status}`);
@@ -68,7 +68,7 @@ async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
   }
 
   // Claim
-  console.log()
+  console.log();
   console.log(`Claiming for Initiative at ${initiative}`);
   let txHash;
   if (!isMerkl) {
@@ -81,12 +81,12 @@ async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
     });
     txHash = await merklInitiativeContract.write.claimForInitiative();
   }
-  console.log('tx hash: ', txHash);
+  console.log("tx hash: ", txHash);
 
   // Wait for tx to be mined
   // TODO: get current nonce and increment for every tx/initiative
   //await new Promise(f => setTimeout(f, 60000));
-  await client.public.waitForTransactionReceipt({ hash: txHash })
+  await client.public.waitForTransactionReceipt({ hash: txHash });
 
   return;
 }
@@ -100,4 +100,4 @@ async function main() {
 }
 
 // init
-main()
+main();
