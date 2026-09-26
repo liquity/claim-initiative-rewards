@@ -13,10 +13,11 @@ type InitiativeKind = "generic" | "merkl";
 type Initiative = { kind: InitiativeKind; address: `0x${string}` };
 
 const INITIATIVES: Initiative[] = [
-  { kind: "generic", address: "0xba415afa8fcd65196764b5e08cb4dbf90bee33b4" }, // CURVE_BOLD_USDC
-  { kind: "generic", address: "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e" }, // CURVE_BOLD_LUSD
-  { kind: "generic", address: "0xdc6f869d2d34e4aee3e89a51f2af6d54f0f7f690" }, // DEFI_COLLECTIVE
-  { kind: "merkl", address: "0xB42448852A1BFc99d66ed53C65e2B49cF954f615" }, // UNIV4_BOLD_USDC_MERKL_INITIATIVE
+  { kind: "generic", address: "0xba415afa8fcd65196764b5e08cb4dbf90bee33b4" }, // Curve BOLD/USDC
+  { kind: "generic", address: "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e" }, // Curve BOLD/LUSD
+  { kind: "generic", address: "0x69efec83296c711db4a403b1ee281e87f99590d6" }, // Curve BOLD/USDC Bribes (Votium)
+  { kind: "generic", address: "0x865c61e03b35975d25442f60ce4621db1e349a2f" }, // IPOR Carry Vault
+  { kind: "merkl", address: "0xB42448852A1BFc99d66ed53C65e2B49cF954f615" }, // Uniswap V4 BOLD/USDC (Merkl)
 ];
 
 const CLAIMABLE = 3; // Initiative status
