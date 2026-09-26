@@ -62,6 +62,8 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
   console.log(`Initiative status: ${status}`);
   console.log(`Claimable amount:  ${claimableAmount}`);
 
+  // TODO: in case of Merkl initiatives, someone could have claimed directly through Governance,
+  // in which case we still need to create the campaign. How to detect this best?
   if (greaterThanOrEqual(lastEpochClaim, subtract(currentEpoch, 1))) {
     console.log(`Already claimed (${initiative})`);
     return;
