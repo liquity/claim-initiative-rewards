@@ -12,8 +12,16 @@ const INITIATIVES = [
   "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e", // CURVE_BOLD_LUSD
   "0xdc6f869d2d34e4aee3e89a51f2af6d54f0f7f690", // DEFI_COLLECTIVE
 ];
-const UNIV4_BOLD_USDC_MERKL_INITIATIVE = "0xB42448852A1BFc99d66ed53C65e2B49cF954f615";
+const MERKL_INITIATIVES = [
+  "0xB42448852A1BFc99d66ed53C65e2B49cF954f615", // UNIV4_BOLD_USDC_MERKL_INITIATIVE
+];
 const CLAIMABLE = 3; // Initiative status
+
+type InitiativeKind = "generic" | "merkl";
+
+const assertNever = (value: never): never => {
+  throw new Error(`Unhandled value: ${value}`);
+};
 
 const isValidPk = (k: string): k is `0x${string}` => k.startsWith("0x");
 if (!process.env.PRIVATE_KEY || !isValidPk(process.env.PRIVATE_KEY)) {
@@ -35,18 +43,18 @@ const client = {
   }),
 };
 
-async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
-  const contract = getContract({
+async function claimForInitiative(initiative: Address, kind: InitiativeKind = "generic") {
+  const governance = getContract({
     address: GOVERNANCE,
     abi: governanceAbi,
     client,
   });
 
   // get current epoch
-  const currentEpoch = await contract.read.epoch();
+  const currentEpoch = await governance.read.epoch();
 
   // get last claim epoch
-  const [status, lastEpochClaim, claimableAmount] = await contract.read.getInitiativeState([initiative]);
+  const [status, lastEpochClaim, claimableAmount] = await governance.read.getInitiativeState([initiative]);
 
   console.log();
   console.log(`Current epoch:     ${currentEpoch}`);
@@ -71,15 +79,20 @@ async function claimForInitiative(initiative: Address, isMerkl: bool = false) {
   console.log();
   console.log(`Claiming for Initiative at ${initiative}`);
   let txHash;
-  if (!isMerkl) {
-    txHash = await contract.write.claimForInitiative([initiative]);
-  } else {
-    const merklInitiativeContract = getContract({
-      address: initiative,
-      abi: merklInitiativeAbi,
-      client,
-    });
-    txHash = await merklInitiativeContract.write.claimForInitiative();
+  switch (kind) {
+    case "generic":
+      txHash = await governance.write.claimForInitiative([initiative]);
+      break;
+    case "merkl":
+      const merklInitiative = getContract({
+        address: initiative,
+        abi: merklInitiativeAbi,
+        client,
+      });
+      txHash = await merklInitiative.write.claimForInitiative();
+      break;
+    default:
+      return assertNever(kind);
   }
   console.log("tx hash: ", txHash);
 
@@ -96,7 +109,9 @@ async function main() {
     await claimForInitiative(getAddress(initiative));
   }
   // Merkl needs a wrapper, not claimed directly on Governance
-  await claimForInitiative(getAddress(UNIV4_BOLD_USDC_MERKL_INITIATIVE), true);
+  for (const initiative of MERKL_INITIATIVES) {
+    await claimForInitiative(getAddress(initiative), "merkl");
+  }
 }
 
 // init
