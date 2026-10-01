@@ -168,7 +168,8 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
     `:moneybag: Claimed ${amount} — ${initiativeLink(initiative)} (epoch ${currentEpoch})`,
     slack.section(`:moneybag: *Claimed ${amount}* — ${initiativeLink(initiative)}`),
     slack.fields(
-      `*Epoch*: ${currentEpoch}`,
+      `*Current epoch*: ${currentEpoch}`,
+      `*Claim epoch*: ${currentEpoch - 1n}`,
       `*Amount*: ${amount}`,
       `*TX*: <https://etherscan.io/tx/${txHash}|${shortTxHash}>`,
     ),
