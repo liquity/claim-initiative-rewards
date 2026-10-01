@@ -52,7 +52,7 @@ const startedAt = Date.now();
 let pollCount = 0;
 let claimCount = 0;
 
-const lastClaimedEpoch = new Map<Address, bigint>(); // in-memory cache, reset on restart
+const handledEpoch = new Map<Address, bigint>(); // epochs already handled per initiative, in-memory, reset on restart
 
 const shortAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 const initiativeLink = (address: Address) => `<https://etherscan.io/address/${address}|\`${shortAddress(address)}\`>`;
@@ -81,9 +81,9 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
   // get current epoch
   const currentEpoch = await governance.read.epoch();
 
-  // skip if we already claimed in this epoch during this run
-  if (greaterThanOrEqual(lastClaimedEpoch.get(initiative) ?? -1n, currentEpoch - 1n)) {
-    console.log(`Already claimed this epoch (${initiative})`);
+  // skip if we already handled this initiative in this epoch during this run
+  if ((handledEpoch.get(initiative) ?? -1n) >= currentEpoch) {
+    console.log(`Already handled this epoch (${initiative})`);
     return;
   }
 
@@ -110,21 +110,21 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
 
   // TODO: in case of Merkl initiatives, someone could have claimed directly through Governance,
   // in which case we still need to create the campaign. How to detect this best?
-  if (greaterThanOrEqual(lastEpochClaim, subtract(currentEpoch, 1))) {
+  if (lastEpochClaim >= currentEpoch - 1n) {
     console.log(`Already claimed (${initiative})`);
-    lastClaimedEpoch.set(initiative, currentEpoch);
+    handledEpoch.set(initiative, currentEpoch);
     await notifyState(":information_source: Already claimed");
     return;
   }
   if (claimableAmount === 0n) {
     console.log(`Nothing to claim (${initiative})`);
-    lastClaimedEpoch.set(initiative, currentEpoch);
+    handledEpoch.set(initiative, currentEpoch);
     await notifyState(":zzz: Nothing to claim");
     return;
   }
   if (status != CLAIMABLE) {
     console.log(`Not claimable status (${initiative})`);
-    lastClaimedEpoch.set(initiative, currentEpoch);
+    handledEpoch.set(initiative, currentEpoch);
     await notifyState(`:warning: Not claimable (status ${status})`);
     return;
   }
@@ -157,7 +157,7 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
   const receipt = await client.public.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") throw new Error(`Claim transaction reverted (${txHash})`);
 
-  lastClaimedEpoch.set(initiative, currentEpoch);
+  handledEpoch.set(initiative, currentEpoch);
   claimCount++;
 
   const amount = fmtAmount(claimableAmount);
