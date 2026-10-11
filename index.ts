@@ -10,19 +10,16 @@ const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 5 * 60 * 1000); 
 const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const GOVERNANCE = "0x807def5e7d057df05c796f4bc75c3fe82bd6eee1";
+const KNOWN_INITIATIVES_URL = "https://api.liquity.org/v2/known-initiatives/ethereum.json";
 
 type InitiativeKind = "generic" | "merkl";
-type Initiative = { kind: InitiativeKind; address: `0x${string}` };
+type Initiative = { kind: InitiativeKind; address: `0x${string}`; name: string };
 
-const INITIATIVES: Initiative[] = [
-  { kind: "generic", address: "0xba415afa8fcd65196764b5e08cb4dbf90bee33b4" }, // Curve BOLD/USDC
-  { kind: "generic", address: "0x0c76eae597afa2aa163a8c845f7e7e870256ac7e" }, // Curve BOLD/LUSD
-  { kind: "generic", address: "0x69efec83296c711db4a403b1ee281e87f99590d6" }, // Curve BOLD/USDC Bribes (Votium)
-  { kind: "generic", address: "0x865c61e03b35975d25442f60ce4621db1e349a2f" }, // IPOR Carry Vault
-  { kind: "merkl", address: "0xB42448852A1BFc99d66ed53C65e2B49cF954f615" }, // Uniswap V4 BOLD/USDC (Merkl)
-];
-
-const CLAIMABLE = 3; // Initiative status
+// Initiative statuses
+const NON_EXISTENT = 0;
+const CLAIMABLE = 3;
+const UNREGISTERABLE = 5;
+const UNREGISTERED = 6;
 
 const assertNever = (value: never): never => {
   throw new Error(`Unhandled value: ${value}`);
@@ -48,6 +45,12 @@ const client = {
   }),
 };
 
+const governance = getContract({
+  address: GOVERNANCE,
+  abi: governanceAbi,
+  client,
+});
+
 const startedAt = Date.now();
 let pollCount = 0;
 let claimCount = 0;
@@ -71,24 +74,72 @@ async function getEthBalance(): Promise<string> {
   return `${fmtAmount(balance)} ETH`;
 }
 
-async function claimForInitiative(initiative: Address, kind: InitiativeKind = "generic") {
-  const governance = getContract({
-    address: GOVERNANCE,
-    abi: governanceAbi,
-    client,
-  });
+async function fetchKnownInitiatives(): Promise<Initiative[]> {
+  const response = await fetch(KNOWN_INITIATIVES_URL);
+  if (!response.ok) throw new Error(`Failed to fetch known initiatives: HTTP ${response.status}`);
 
+  const knownInitiatives = (await response.json()) as Record<string, { name?: string; group?: string }>;
+
+  return Object.entries(knownInitiatives).map(([address, { name, group }]) => ({
+    address: address as `0x${string}`,
+    kind: group?.toLowerCase() === "merkl" ? "merkl" : "generic",
+    name: name ?? shortAddress(address),
+  }));
+}
+
+async function filterInitiativesByStatus(initiatives: Initiative[]): Promise<Initiative[]> {
+  const results = await Promise.allSettled(
+    initiatives.map(({ address }) => governance.read.getInitiativeState([address]).then(([status]) => status)),
+  );
+
+  const filtered: Initiative[] = [];
+
+  for (const [initiative, result] of initiatives.map((initiative, i) => [initiative, results[i]] as const)) {
+    if (result.status === "rejected") {
+      console.error(`Error reading status of ${initiative.name} (${initiative.address}):`, result.reason);
+      continue;
+    }
+
+    const status = result.value;
+
+    if (status === NON_EXISTENT) {
+      console.log(`Skipping non-existent initiative: ${initiative.name} (${initiative.address})`);
+      continue;
+    }
+    if (status === UNREGISTERED) {
+      console.log(`Skipping unregistered initiative: ${initiative.name} (${initiative.address})`);
+      continue;
+    }
+    // if (status === UNREGISTERABLE) {
+    //   console.log(`Unregisterable initiative ${initiative.name} (${initiative.address})`);
+    //   await slack.notify(
+    //     `:warning: Unregisterable initiative — ${initiative.name} ${initiativeLink(initiative.address)}`,
+    //     slack.section(
+    //       `:warning: *Unregisterable initiative* — ${initiative.name} ${initiativeLink(initiative.address)}`,
+    //     ),
+    //     slack.fields(`*Status*: ${status} (unregisterable)`),
+    //   );
+    //   continue; // claiming would revert in this state
+    // }
+
+    filtered.push(initiative);
+  }
+
+  return filtered;
+}
+
+async function claimForInitiative({ address, kind, name }: Initiative) {
   // get current epoch
   const currentEpoch = await governance.read.epoch();
 
   // skip if we already handled this initiative in this epoch during this run
-  if ((handledEpoch.get(initiative) ?? -1n) >= currentEpoch) {
-    console.log(`Already handled this epoch (${initiative})`);
+  if ((handledEpoch.get(address) ?? -1n) >= currentEpoch) {
+    console.log(`Already handled this epoch: ${name} (${address})`);
     return;
   }
 
   // get last claim epoch
-  const [status, lastEpochClaim, claimableAmount] = await governance.read.getInitiativeState([initiative]);
+  const [status, lastEpochClaim, claimableAmount] = await governance.read.getInitiativeState([address]);
 
   console.log();
   console.log(`Current epoch:     ${currentEpoch}`);
@@ -98,8 +149,8 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
 
   const notifyState = (title: string) =>
     slack.notify(
-      `${title} — ${initiativeLink(initiative)} (epoch ${currentEpoch})`,
-      slack.section(`*${title}* — ${initiativeLink(initiative)}`),
+      `${title} — ${name} ${initiativeLink(address)} (epoch ${currentEpoch})`,
+      slack.section(`*${title}* — ${name} ${initiativeLink(address)}`),
       slack.fields(
         `*Current epoch*: ${currentEpoch}`,
         `*Last claim epoch*: ${lastEpochClaim}`,
@@ -111,36 +162,42 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
   // TODO: in case of Merkl initiatives, someone could have claimed directly through Governance,
   // in which case we still need to create the campaign. How to detect this best?
   if (lastEpochClaim >= currentEpoch - 1n) {
-    console.log(`Already claimed (${initiative})`);
-    handledEpoch.set(initiative, currentEpoch);
+    console.log(`Already claimed: ${name} (${address})`);
+    handledEpoch.set(address, currentEpoch);
     await notifyState(":information_source: Already claimed");
     return;
   }
+  if (status === UNREGISTERABLE) {
+    console.log(`Unregisterable: ${name} (${address})`);
+    handledEpoch.set(address, currentEpoch);
+    await notifyState(":warning: Unregisterable");
+    return;
+  }
   if (claimableAmount === 0n) {
-    console.log(`Nothing to claim (${initiative})`);
-    handledEpoch.set(initiative, currentEpoch);
+    console.log(`Nothing to claim: ${name} (${address})`);
+    handledEpoch.set(address, currentEpoch);
     await notifyState(":zzz: Nothing to claim");
     return;
   }
-  if (status != CLAIMABLE) {
-    console.log(`Not claimable status (${initiative})`);
-    handledEpoch.set(initiative, currentEpoch);
+  if (status !== CLAIMABLE) {
+    console.log(`Not claimable status: ${name} (${address})`);
+    handledEpoch.set(address, currentEpoch);
     await notifyState(`:warning: Not claimable (status ${status})`);
     return;
   }
 
   // Claim
   console.log();
-  console.log(`Claiming for Initiative at ${initiative}`);
+  console.log(`Claiming for Initiative ${name} at ${address}`);
 
   let txHash;
   switch (kind) {
     case "generic":
-      txHash = await governance.write.claimForInitiative([initiative]);
+      txHash = await governance.write.claimForInitiative([address]);
       break;
     case "merkl":
       const merklInitiative = getContract({
-        address: initiative,
+        address,
         abi: merklInitiativeAbi,
         client,
       });
@@ -157,16 +214,16 @@ async function claimForInitiative(initiative: Address, kind: InitiativeKind = "g
   const receipt = await client.public.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") throw new Error(`Claim transaction reverted (${txHash})`);
 
-  handledEpoch.set(initiative, currentEpoch);
+  handledEpoch.set(address, currentEpoch);
   claimCount++;
 
   const amount = fmtAmount(claimableAmount);
   const shortTxHash = `\`${txHash.slice(0, 10)}…${txHash.slice(-6)}\``;
-  console.log(`Claimed ${amount} (${initiative})`);
+  console.log(`Claimed ${amount} (${address})`);
 
   await slack.notify(
-    `:moneybag: Claimed ${amount} — ${initiativeLink(initiative)} (epoch ${currentEpoch})`,
-    slack.section(`:moneybag: *Claimed ${amount}* — ${initiativeLink(initiative)}`),
+    `:moneybag: Claimed ${amount} — ${name} ${initiativeLink(address)} (epoch ${currentEpoch})`,
+    slack.section(`:moneybag: *Claimed ${amount}* — ${name} ${initiativeLink(address)}`),
     slack.fields(
       `*Current epoch*: ${currentEpoch}`,
       `*Claim epoch*: ${currentEpoch - 1n}`,
@@ -209,26 +266,19 @@ function sleep(ms: number) {
 
 async function main() {
   console.log(
-    `Watching ${INITIATIVES.length} initiatives for claimable rewards (polling every ${POLL_INTERVAL_MS / 1000}s)...`,
+    `Watching initiatives from ${KNOWN_INITIATIVES_URL} for claimable rewards (polling every ${POLL_INTERVAL_MS / 1000}s)...`,
   );
 
   await slack.notify(
-    `:rocket: Claim bot started — watching ${INITIATIVES.length} initiatives`,
-    slack.section(`:rocket: *Claim bot started* — watching *${INITIATIVES.length}* initiatives on Ethereum mainnet`),
+    `:rocket: Claim bot started`,
+    slack.section(
+      `:rocket: *Claim bot started* — watching initiatives listed on <${KNOWN_INITIATIVES_URL}|api.liquity.org> on Ethereum mainnet`,
+    ),
     slack.fields(
       `*Wallet*: ${walletLink}`,
       `*Balance*: ${await getEthBalance()}`,
       `*Poll interval*: ${POLL_INTERVAL_MS / 1000}s`,
       `*Heartbeat*: every ${HEARTBEAT_INTERVAL_MS / 3_600_000}h`,
-    ),
-    slack.section(
-      [
-        "*Initiatives*:",
-        ...INITIATIVES.map(
-          ({ address, kind }) =>
-            `• ${initiativeLink(address)} ${kind === "generic" ? "_(Generic)_" : kind === "merkl" ? "_(Merkl)_" : ""}`,
-        ),
-      ].join("\n"),
     ),
   );
 
@@ -238,15 +288,40 @@ async function main() {
     console.log();
     console.log(`=== Poll started at ${new Date().toISOString()} ===`);
 
-    for (const { address, kind } of INITIATIVES) {
+    let initiatives: Initiative[] = [];
+
+    try {
+      // fetch the known initiatives again on each poll cycle, as the list may change over time
+      initiatives = await fetchKnownInitiatives();
+      console.log(`Fetched ${initiatives.length} known initiatives`);
+    } catch (error) {
+      console.error("Error fetching known initiatives:", error);
+
+      await slack.notify(
+        ":warning: Error fetching known initiatives",
+        slack.section(":warning: *Error fetching known initiatives* — skipping this poll cycle"),
+        slack.fields(
+          `*Time*: ${new Date().toISOString()}`,
+          "*Error*: " +
+            "```" +
+            (error instanceof Error ? error.message : String(error)).slice(0, 500).replace(/`/g, "'") +
+            "```",
+        ),
+      );
+    }
+
+    const activeInitiatives = await filterInitiativesByStatus(initiatives);
+
+    for (const initiative of activeInitiatives) {
+      const { address } = initiative;
       try {
-        await claimForInitiative(address, kind);
+        await claimForInitiative(initiative);
       } catch (error) {
         console.error(`Error claiming for ${address}:`, error);
 
         await slack.notify(
           `:warning: Claim error for ${address}`,
-          slack.section(`:warning: *Claim error* — ${initiativeLink(address)}`),
+          slack.section(`:warning: *Claim error* — ${initiative.name} ${initiativeLink(address)}`),
           slack.fields(
             `*Time*: ${new Date().toISOString()}`,
             "*Error*: " +
